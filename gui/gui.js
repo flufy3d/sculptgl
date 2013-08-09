@@ -112,8 +112,6 @@ Gui.prototype = {
       self.ctrlNegative_.__li.hidden = tool !== st.BRUSH && tool !== st.INFLATE && tool !== st.CREASE;
       self.ctrlContinuous_.__li.hidden = tool === st.ROTATE || tool === st.DRAG;
       self.ctrlColor_.__li.hidden = tool !== st.COLOR;
-      if (tool === st.COLOR)
-        self.ctrlShaders_.setValue(Render.mode.PHONG);
     });
     this.ctrlClay_ = foldSculpt.add(main.sculpt_, 'clay_').name('Clay');
     this.ctrlNegative_ = foldSculpt.add(main.sculpt_, 'negative_').name('Negative (N)');
@@ -128,8 +126,8 @@ Gui.prototype = {
     var foldTopo = gui.addFolder('Topology');
     var optionsTopo = {
       'Static': Sculpt.topo.STATIC,
-      'Subdivision': Sculpt.topo.SUBDIVISION,
-      'Adaptive (!!!)': Sculpt.topo.ADAPTIVE
+      'Dynamic': Sculpt.topo.SUBDIVISION,
+      'Adaptive (!)': Sculpt.topo.ADAPTIVE
     };
     var ctrlTopo = foldTopo.add(main.sculpt_, 'topo_', optionsTopo).name('Tool');
     ctrlTopo.onChange(function (value)
@@ -140,8 +138,8 @@ Gui.prototype = {
       self.ctrlDetailSubdivision_.__li.hidden = topo === st.STATIC;
       self.ctrlDetailDecimation_.__li.hidden = topo !== st.SUBDIVISION;
     });
-    this.ctrlDetailSubdivision_ = foldTopo.add(main.sculpt_, 'detailSubdivision_', 0, 1).name('Detail');
-    this.ctrlDetailDecimation_ = foldTopo.add(main.sculpt_, 'detailDecimation_', 0, 1).name('Min edge');
+    this.ctrlDetailSubdivision_ = foldTopo.add(main.sculpt_, 'detailSubdivision_', 0, 1).name('Subdivision');
+    this.ctrlDetailDecimation_ = foldTopo.add(main.sculpt_, 'detailDecimation_', 0, 1).name('Decimation');
     foldTopo.open();
 
     //mesh fold
