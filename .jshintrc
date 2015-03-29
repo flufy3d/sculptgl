@@ -5,6 +5,7 @@
   "curly": false,
   "eqeqeq": true,
   "eqnull": true,
+  "es5": true,
   "evil": false,
   "expr": false,
   "forin": true,
@@ -21,15 +22,11 @@
   "quotmark": "single",
   "regexdash": false,
   "shadow": false,
-  "strict": true,
+  "strict": false,
   "sub": false,
   "supernew": false,
   "trailing": true,
   "undef": true,
   "unused": true,
-  "white": true,
-  "globals": {
-        "define": false,
-        "require": false
-  }
+  "white": true
 }

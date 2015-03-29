@@ -1,23 +1,21 @@
 ﻿<!doctype html>
 <html lang='en'>
 <head>
-  <meta charset='utf-8'/>
+  <meta charset='utf-8' />
   <meta name='description' content='SculptGL is a small sculpting application powered by JavaScript and webGL.'>
   <meta name='author' content='stéphane GINIER'>
   <title> SculptGL - A WebGL sculpting app </title>
-  <link href='http://fonts.googleapis.com/css?family=Open+Sans:400,600' rel='stylesheet' type='text/css'>
-  <link rel='stylesheet' href='css/yagui.css' type='text/css'/>
+  <link rel='stylesheet' href='css/style.css' type='text/css' />
+  <script src='lib/jquery-2.0.3.min.js'></script>
+  <script src='lib/jquery.mousewheel.js'></script>
   <script>
-    window.nodeRequire = window.require;
-    window.require = undefined;
+  'use strict';
+  $(document).ready(function ()
+  {
+    var sculptgl = new SculptGL();
+    sculptgl.start();
+  });
   </script>
-  <!-- 3rd party libraries -->
-  <script src='lib/FileSaver.js'></script>
-  <script src='lib/gl-matrix.js'></script>
-  <script src='lib/yagui.js'></script>
-  <script src='lib/zip.js'></script>
-
-  <script data-main='main' src='tools/require.js'></script>
 </head>
 <!--
  ____             _       _    ____ _     
@@ -26,23 +24,53 @@
  ___) | (__| |_| | | |_) | |_| |_| | |___ 
 |____/ \___|\__,_|_| .__/ \__|\____|_____|
                    |_|
-A tiny sculpting application.
+A tiny sculpting application. This is basically a port in JavaScript/WebGL 
+from a previous C++/OpenGL application that I made.
 
 Stéphane GINIER
 -->
 <body oncontextmenu='return false;'>
-  <input type='file' id='fileopen' multiple style='display: none'/>
-  <input type='file' id='backgroundopen' style='display: none'/>
-  <input type='file' id='alphaopen' style='display: none'/>
-  <input type='file' id='textureopen' style='display: none'/>
-
-  <form id='donate' action='https://www.paypal.com/cgi-bin/webscr' method='post' target='_blank'>
-  <input type='hidden' name='cmd' value='_s-xclick'>
-  <input type='hidden' name='hosted_button_id' value='5VK9DG927CS3Y'>
-
+  <input type='file' id='fileopen' style='display: none'/>
   <canvas id='canvas'></canvas>
 
   <!-- wacom tablet plugin -->
-  <object id='tablet-plugin' type='application/x-wacomtabletplugin'></object>
+  <object id="tablet-plugin" type="application/x-wacomtabletplugin"></object>
+
+  <!-- 3rd party libraries -->
+  <script src='lib/dat.gui.min.js'></script>
+  <script src='lib/filesaver.min.js'></script>
+  <script src='lib/gl-matrix-min.js'></script>
+
+  <!-- 3D and math stuffs -->
+  <script src='math3d/camera.js'></script>
+  <script src='math3d/geometry.js'></script>
+  <script src='math3d/picking.js'></script>
+  <script src='math3d/grid.js'></script>
+
+  <!-- mesh related stuffs -->
+  <script src='object/mesh.js'></script>
+  <script src='object/aabb.js'></script>
+  <script src='object/triangle.js'></script>
+  <script src='object/vertex.js'></script>
+  <script src='object/octree.js'></script>
+  <script src='object/render.js'></script>
+  <script src='object/states.js'></script>
+
+  <!-- sculpting and topology stuffs -->
+  <script src='editor/sculpt.js'></script>
+  <script src='editor/topology.js'></script>
+  <script src='editor/subdivision.js'></script>
+  <script src='editor/decimation.js'></script>
+  <script src='editor/adaptive.js'></script>
+
+  <!-- misc -->
+  <script src='misc/files.js'></script>
+  <script src='misc/utils.js'></script>
+
+  <!-- misc -->
+  <script src='gui/gui.js'></script>
+
+  <!-- main -->
+  <script src='sculptgl.js'></script>
 </body>
 </html>
