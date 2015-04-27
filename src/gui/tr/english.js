@@ -60,6 +60,8 @@ define([], function () {
     sceneReset: 'Clear scene',
     sceneAddSphere: 'Add sphere',
     sceneAddCube: 'Add cube',
+    sceneSelection: 'Selection',
+    sceneMerge: 'Merge selection',
 
     // mesh
     meshTitle: 'Mesh',
@@ -143,7 +145,7 @@ define([], function () {
     sculptMaskingInvert: 'Invert (-Ctrl + Click)',
     sculptMaskingBlur: 'Blur',
     sculptMaskingSharpen: 'Sharpen',
-    sculptDeleteMesh: 'Delete the mesh ?',
+    sculptDeleteSelection: 'Delete the selection ?',
     sculptPBRTitle: 'PBR materials',
     sculptPaintAll: 'Paint all',
     sculptTranslateDepth: 'Depth translate (N or -Alt)',
@@ -181,6 +183,12 @@ define([], function () {
     renderingWireframe: 'wireframe (slower)',
     renderingExposure: 'Exposure',
     renderingEnvironment: 'Environment',
+    renderingIsolate: 'Isolate/Show (I)',
+
+    // contour
+    contour: 'Contour',
+    contourShow: 'Show contour',
+    contourColor: 'Color',
 
     // matcaps
     matcapPearl: 'Pearl',
@@ -207,7 +215,17 @@ define([], function () {
     sketchfabAbort: 'Abort the last upload ?',
     sketchfabUploadProcessing: 'Processing...\nYour model will be available at :',
 
-    donate: 'Donate !'
+    donate: 'Donate !',
+
+    alphaNone: 'None',
+    alphaSquare: 'Square',
+    alphaSkin: 'Skin',
+
+    envFootPrint: 'Foot Print',
+    envGlazedPatio: 'Glazed Patio',
+    envNicolausChurch: 'St Nicolaus church',
+    envTerrace: 'Terrace',
+    envBryantPark: 'BryantPark'
   };
 
   return TR;

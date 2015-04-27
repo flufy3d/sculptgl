@@ -1,12 +1,13 @@
 define([
   'gui/GuiTR',
   'render/Render',
-  'render/Shader',
-  'render/shaders/ShaderMatcap',
-  'render/shaders/ShaderPBR'
-], function (TR, Render, Shader, ShaderMatcap, ShaderPBR) {
+  'render/Shader'
+], function (TR, Render, Shader) {
 
   'use strict';
+
+  var ShaderPBR = Shader[Shader.mode.PBR];
+  var ShaderMatcap = Shader[Shader.mode.MATCAP];
 
   var GuiRendering = function (guiParent, ctrlGui) {
     this.main_ = ctrlGui.main_; // main application
@@ -34,9 +35,11 @@ define([
       optionsShaders[Shader.mode.PBR] = TR('renderingPBR');
       optionsShaders[Shader.mode.NORMAL] = TR('renderingNormal');
       optionsShaders[Shader.mode.UV] = TR('renderingUV');
-      optionsShaders[Shader.mode.CURVATURE] = TR('renderingCurvature');
       menu.addTitle(TR('renderingShader'));
       this.ctrlShaders_ = menu.addCombobox('', Shader.mode.PBR, this.onShaderChanged.bind(this), optionsShaders);
+
+      // flat shading
+      this.ctrlCurvature_ = menu.addSlider(TR('renderingCurvature'), 20, this.onCurvatureChanged.bind(this), 0, 100, 1);
 
       // environments
       var optionEnvs = {};
@@ -60,7 +63,7 @@ define([
       this.ctrlExposure_.setVisibility(false);
 
       menu.addTitle(TR('renderingExtra'));
-      menu.addSlider(TR('renderingTransparency'), 0.0, this.onTransparencyChanged.bind(this), 0, 100, 1);
+      this.ctrlTransparency_ = menu.addSlider(TR('renderingTransparency'), 0.0, this.onTransparencyChanged.bind(this), 0, 100, 1);
 
       // flat shading
       this.ctrlFlatShading_ = menu.addCheckbox(TR('renderingFlat'), false, this.onFlatShading.bind(this));
@@ -71,6 +74,25 @@ define([
         this.ctrlShowWireframe_.setVisibility(false);
 
       this.addEvents();
+    },
+    onCurvatureChanged: function (val) {
+      var main = this.main_;
+      var mesh = main.getMesh();
+      if (!mesh)
+        return;
+
+      if (!main.isReplayed())
+        main.getReplayWriter().pushCurvature(val);
+
+      mesh.getRender().setCurvature(val / 20.0);
+      main.render();
+    },
+    onEnvironmentChanged: function (val) {
+      ShaderPBR.idEnv = val;
+      var main = this.main_;
+      if (!main.isReplayed())
+        main.getReplayWriter().pushAction('ENVIRONMENT_SELECT', val);
+      main.render();
     },
     onExposureChanged: function (val) {
       var main = this.main_;
@@ -103,9 +125,6 @@ define([
           window.alert('No UV on this mesh.');
         } else {
 
-          if (val === Shader.mode.CURVATURE && this.ctrlFlatShading_.getValue())
-            this.ctrlFlatShading_.setValue(false);
-
           if (!main.isReplayed())
             main.getReplayWriter().pushAction('SHADER_SELECT', value);
 
@@ -114,10 +133,6 @@ define([
         }
       }
       this.updateVisibility();
-    },
-    onEnvironmentChanged: function (value) {
-      ShaderPBR.idEnv = value;
-      this.main_.render();
     },
     /** On matcap change */
     onMatcapChanged: function (value) {
@@ -178,12 +193,12 @@ define([
         return;
       }
       this.menu_.setVisibility(true);
-      var render = mesh.getRender();
-      this.ctrlShaders_.setValue(render.shader_.type_, true);
-      this.ctrlFlatShading_.setValue(render.flatShading_, true);
-      this.ctrlShowWireframe_.setValue(render.showWireframe_, true);
-      this.ctrlMatcap_.setValue(render.matcap_, true);
-      this.ctrlExposure_.setValue(render.exposure_ * 20, true);
+      this.ctrlShaders_.setValue(mesh.getShaderType(), true);
+      this.ctrlFlatShading_.setValue(mesh.getFlatShading(), true);
+      this.ctrlShowWireframe_.setValue(mesh.getShowWireframe(), true);
+      this.ctrlMatcap_.setValue(mesh.getMatcap(), true);
+      this.ctrlTransparency_.setValue(100 - 100 * mesh.getOpacity(), true);
+      this.ctrlCurvature_.setValue(20 * mesh.getCurvature(), true);
       this.updateVisibility();
     },
     updateVisibility: function () {
@@ -196,7 +211,6 @@ define([
       this.ctrlExposure_.setVisibility(val === Shader.mode.PBR);
       this.ctrlEnvTitle_.setVisibility(val === Shader.mode.PBR);
       this.ctrlEnv_.setVisibility(val === Shader.mode.PBR);
-      this.ctrlFlatShading_.setVisibility(val !== Shader.mode.CURVATURE);
     },
     /** Return true if flat shading is enabled */
     getFlatShading: function () {

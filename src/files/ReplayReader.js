@@ -6,11 +6,12 @@ define([
   'files/ReplayEnums',
   'math3d/Camera',
   'math3d/Picking',
+  'misc/getUrlOptions',
   'misc/Tablet',
   'editor/Sculpt',
   'editor/Remesh',
   'render/Shader'
-], function (glm, yagui, TR, ExportSGL, Replay, Camera, Picking, Tablet, Sculpt, Remesh, Shader) {
+], function (glm, yagui, TR, ExportSGL, Replay, Camera, Picking, getUrlOptions, Tablet, Sculpt, Remesh, Shader) {
 
   'use strict';
 
@@ -198,7 +199,6 @@ define([
       Tablet.overridePressure = 1.0;
       this.virtualCamera_ = new Camera();
       main.sculpt_ = new Sculpt(main.getStates());
-      main.getPicking().rDisplay_ = 50;
       main.setReplayed(true);
       main.clearScene();
 
@@ -528,15 +528,8 @@ define([
       case Replay.CAMERA_TOGGLE_TOP:
         vcam.toggleViewTop();
         break;
-      case Replay.CAMERA_SNAP:
-        vcam.snapClosestRotation();
-        break;
       case Replay.CAMERA_TOGGLE_PIVOT:
         vcam.toggleUsePivot();
-        break;
-      case Replay.SCULPT_RADIUS:
-        main.getPicking().rDisplay_ = data.getUint8(sel, true);
-        sel += 1;
         break;
       case Replay.SCULPT_TOOL:
         sculpt.tool_ = data.getUint8(sel, true);
@@ -550,6 +543,21 @@ define([
         break;
       case Replay.SCULPT_UPDATE_CONTINOUS:
         tool.updateContinuous(main);
+        break;
+      case Replay.BRUSH_RADIUS:
+      case Replay.CREASE_RADIUS:
+      case Replay.FLATTEN_RADIUS:
+      case Replay.INFLATE_RADIUS:
+      case Replay.PINCH_RADIUS:
+      case Replay.SMOOTH_RADIUS:
+      case Replay.TWIST_RADIUS:
+      case Replay.LOCALSCALE_RADIUS:
+      case Replay.DRAG_RADIUS:
+      case Replay.PAINT_RADIUS:
+      case Replay.MOVE_RADIUS:
+      case Replay.MASKING_RADIUS:
+        tool.radius_ = data.getUint16(sel, true);
+        sel += 2;
         break;
       case Replay.BRUSH_INTENSITY:
       case Replay.CREASE_INTENSITY:
@@ -664,6 +672,7 @@ define([
       case Replay.MULTI_RESOLUTION:
         main.getGui().ctrlTopology_.onResolutionChanged(data.getUint8(sel, true));
         sel += 1;
+        nextTick = 100;
         break;
       case Replay.MULTI_SUBDIVIDE:
         main.getGui().ctrlTopology_.subdivide();
@@ -685,6 +694,10 @@ define([
         sel += 3;
         nextTick = 100;
         break;
+      case Replay.MERGE_SELECTION:
+        main.getGui().ctrlScene_.merge();
+        nextTick = 100;
+        break;
       case Replay.DYNAMIC_TOGGLE_ACTIVATE:
         main.getGui().ctrlTopology_.dynamicToggleActivate();
         break;
@@ -699,19 +712,6 @@ define([
         main.getGui().ctrlTopology_.dynamicDecimation(data.getUint8(sel, true));
         sel += 1;
         break;
-      case Replay.LOAD_ALPHA:
-        var nbBytesA = data.getUint32(sel + 8, true);
-        this.nbBytesResourcesLoaded_ += nbBytesA;
-        main.loadAlphaTexture(new Uint8Array(data.buffer.slice(sel + 12, sel + 12 + nbBytesA)), data.getUint32(sel, true), data.getUint32(sel + 4, true));
-        sel += 12 + nbBytesA;
-        break;
-      case Replay.LOAD_MESHES:
-        var nbBytes = data.getUint32(sel, true);
-        main.loadScene(data.buffer.slice(sel + 5, sel + 5 + nbBytes), 'sgl', data.getUint8(sel + 4, true));
-        this.nbBytesResourcesLoaded_ += nbBytes;
-        sel += 5 + nbBytes;
-        this.getOrCreateRenderMeshes(main.getMeshes());
-        break;
       case Replay.ADD_SPHERE:
         main.addSphere();
         this.getOrCreateRenderMesh(main.getMesh());
@@ -720,10 +720,16 @@ define([
         main.addCube();
         this.getOrCreateRenderMesh(main.getMesh());
         break;
-      case Replay.DELETE_CURRENT_MESH:
-        main.deleteCurrentMesh();
+      case Replay.DELETE_SELECTION:
+        main.deleteCurrentSelection();
         break;
-      case Replay.EXPOSURE_INTENSITY:
+      case Replay.ISOLATE_SELECTION:
+        main.getGui().ctrlScene_.isolate();
+        break;
+      case Replay.SHOW_ALL:
+        main.getGui().ctrlScene_.showAll();
+        break;
+      case Replay.EXPOSURE:
         main.getGui().ctrlRendering_.onExposureChanged(data.getUint8(sel, true));
         sel += 1;
         break;
@@ -731,9 +737,17 @@ define([
         main.getGui().ctrlRendering_.onTransparencyChanged(data.getUint8(sel, true));
         sel += 1;
         break;
+      case Replay.CURVATURE:
+        main.getGui().ctrlRendering_.onCurvatureChanged(data.getUint8(sel, true));
+        sel += 1;
+        break;
       case Replay.SHOW_GRID:
         main.getGui().ctrlScene_.onShowGrid(data.getUint8(sel, true));
         this.virtualGrid_ = main.showGrid_;
+        sel += 1;
+        break;
+      case Replay.SHOW_CONTOUR:
+        main.getGui().ctrlScene_.onShowContour(data.getUint8(sel, true));
         sel += 1;
         break;
       case Replay.SHOW_WIREFRAME:
@@ -755,6 +769,10 @@ define([
         main.getGui().ctrlRendering_.onMatcapChanged(data.getUint8(sel, true));
         sel += 1;
         break;
+      case Replay.ENVIRONMENT_SELECT:
+        main.getGui().ctrlRendering_.onEnvironmentChanged(data.getUint8(sel, true));
+        sel += 1;
+        break;
       case Replay.TABLET_TOGGLE_INTENSITY:
         Tablet.useOnIntensity = !Tablet.useOnIntensity;
         break;
@@ -765,6 +783,27 @@ define([
         Tablet.overridePressure = data.getFloat32(sel, true);
         sel += 4;
         break;
+      case Replay.LOAD_ALPHA:
+        var nbBytesA = data.getUint32(sel + 8, true);
+        this.nbBytesResourcesLoaded_ += nbBytesA;
+        main.loadAlphaTexture(new Uint8Array(data.buffer.slice(sel + 12, sel + 12 + nbBytesA)), data.getUint32(sel, true), data.getUint32(sel + 4, true));
+        sel += 12 + nbBytesA;
+        break;
+      case Replay.LOAD_MESHES:
+        var nbBytes = data.getUint32(sel, true);
+        this.nbBytesResourcesLoaded_ += nbBytes;
+        main.loadScene(data.buffer.slice(sel + 5, sel + 5 + nbBytes), 'sgl', data.getUint8(sel + 4, true));
+        sel += 5 + nbBytes;
+        this.getOrCreateRenderMeshes(main.getMeshes());
+        break;
+      case Replay.URL_CONFIG:
+        var nbBytesU = data.getUint32(sel, true);
+        this.nbBytesResourcesLoaded_ += nbBytesU;
+        this.resetUrlOptions(new Uint8Array(data.buffer.slice(sel + 4, sel + 4 + nbBytesU)));
+        sel += 4 + nbBytesU;
+        this.virtualCamera_ = new Camera();
+        main.clearScene();
+        break;
       }
       this.sel_ = sel;
       if (sel >= data.byteLength) {
@@ -772,6 +811,12 @@ define([
         return -1; // end
       }
       return nextTick;
+    },
+    resetUrlOptions: function (u8) {
+      var str = '';
+      for (var i = 0, nb = u8.length; i < nb; ++i)
+        str += String.fromCharCode(u8[i]);
+      getUrlOptions(str);
     },
     endReplay: function () {
       if (this.guiReplay_)
@@ -794,7 +839,7 @@ define([
 
       main.applyRender();
       if (this.iframeParentCallback_)
-        this.iframeParentCallback_(ExportSGL.exportSGLAsArrayBuffer(main.getMeshes()));
+        this.iframeParentCallback_(ExportSGL.exportSGLAsArrayBuffer(main.getMeshes()), main);
     }
   };
 

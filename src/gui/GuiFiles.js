@@ -78,14 +78,14 @@ define([
     },
     saveFileAsSGL: function () {
       if (this.main_.getMeshes().length === 0) return;
-      var blob = Export.exportSGL(this.main_.getMeshes());
+      var blob = Export.exportSGL(this.main_.getMeshes(), this.main_);
       saveAs(blob, 'yourMesh.sgl');
     },
     saveFileAsOBJ: function (selection) {
       var meshes = this.main_.getMeshes();
       if (meshes.length === 0) return;
       if (selection) {
-        meshes = [this.main_.getMesh()];
+        meshes = this.main_.getSelectedMeshes();
         if (!meshes[0]) return;
       }
       var blob = Export.exportOBJ(meshes);

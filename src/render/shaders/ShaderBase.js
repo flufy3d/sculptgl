@@ -1,9 +1,11 @@
 define([
   'lib/glMatrix',
+  'misc/getUrlOptions',
   'misc/Utils',
   'render/Attribute',
-  'text!render/shaders/glsl/colorSpace.glsl'
-], function (glm, Utils, Attribute, colorSpaceGLSL) {
+  'text!render/shaders/glsl/colorSpace.glsl',
+  'text!render/shaders/glsl/curvature.glsl'
+], function (glm, getUrlOptions, Utils, Attribute, colorSpaceGLSL, curvatureGLSL) {
 
   'use strict';
 
@@ -17,9 +19,9 @@ define([
     color: true
   };
 
-  ShaderBase.SHOW_SYMMETRY_LINE = false;
+  ShaderBase.showSymmetryLine = getUrlOptions().mirrorline;
   ShaderBase.uniformNames = {};
-  ShaderBase.uniformNames.commonUniforms = ['uMV', 'uMVP', 'uN', 'uEM', 'uEN', 'uPlaneO', 'uPlaneN', 'uScale', 'uAlpha'];
+  ShaderBase.uniformNames.commonUniforms = ['uMV', 'uMVP', 'uN', 'uEM', 'uEN', 'uPlaneO', 'uPlaneN', 'uScale', 'uCurvature', 'uAlpha', 'uZOrtho'];
 
   ShaderBase.strings = {};
   ShaderBase.strings.colorSpaceGLSL = colorSpaceGLSL;
@@ -35,11 +37,16 @@ define([
     'uniform vec3 uPlaneN;',
     'uniform vec3 uPlaneO;',
     'uniform float uScale;',
+    'uniform float uCurvature;',
+    'uniform float uZOrtho;',
     'varying float vMasking;'
   ].join('\n');
   ShaderBase.strings.fragColorFunction = [
+    '#extension GL_OES_standard_derivatives : enable',
+    curvatureGLSL,
     'vec3 applyMaskAndSym(const in vec3 frag) {',
-    '  vec3 col = frag * (0.3 + 0.7 * vMasking);',
+    '  vec3 col = computeCurvature(vVertex, vNormal, frag, uCurvature, uZOrtho);',
+    '  col *= (0.3 + 0.7 * vMasking);',
     '  if(uScale > 0.0 && abs(dot(uPlaneN, vVertex - uPlaneO)) < 0.15 / uScale)',
     '      return min(col * 1.5, 1.0);',
     '  return col;',
@@ -47,6 +54,8 @@ define([
   ].join('\n');
 
   ShaderBase.getOrCreate = function (gl) {
+    if (this.program)
+      return this;
     var vShader = gl.createShader(gl.VERTEX_SHADER);
     gl.shaderSource(vShader, this.vertex);
     gl.compileShader(vShader);
@@ -87,7 +96,7 @@ define([
     return function (render, main) {
       var gl = render.getGL();
       var mesh = render.getMesh();
-      var useSym = ShaderBase.SHOW_SYMMETRY_LINE && (mesh === main.getMesh()) && main.getSculpt().getSymmetry();
+      var useSym = ShaderBase.showSymmetryLine && (mesh === main.getMesh()) && main.getSculpt().getSymmetry();
 
       var uniforms = this.uniforms;
 
@@ -101,6 +110,10 @@ define([
       gl.uniform3fv(uniforms.uPlaneN, vec3.transformMat3(tmp, mesh.getSymmetryNormal(), mesh.getN()));
       gl.uniform1f(uniforms.uScale, useSym ? mesh.getScale() : -1.0);
       gl.uniform1f(uniforms.uAlpha, mesh.getOpacity());
+
+      gl.uniform1f(uniforms.uCurvature, mesh.getCurvature());
+      var cam = main.getCamera();
+      gl.uniform1f(uniforms.uZOrtho, cam.isOrthographic() ? cam.zoom_ : 0);
     };
   })();
   ShaderBase.draw = function (render, main) {

@@ -17,13 +17,12 @@ define([
     this.noUpload_ = true; // prevent automatic upload
 
     this.firstReplay_ = null; // first part of the replaying (if we are importing a replayer)
-    this.nbBytesLoadingMeshes_ = 0; // nb bytes of loaded meshes
+    this.nbBytesDynamic_ = 0; // nb bytes of extra stuffs (mesh, alpha, urlString)
 
     // (for now we don't serialize 64b data so 32b for each stack action
     // is enough for an upper estimation when exporting the replay file)
     this.stack_ = []; // stack of input action
 
-    this.lastRadius_ = 50.0; // last radius
     this.sculpt_ = new Sculpt(); // states of sculpting tools
     this.pressureOnRadius_ = true; // pressure on radius
     this.pressureOnIntensity_ = false; // pressure on intensity
@@ -34,6 +33,7 @@ define([
     this.uid_ = new Date().getTime(); // best uid ever
     this.cbCheckUpload_ = window.setTimeout.bind(window, this.checkUpload.bind(this), 10000);
     this.checkUpload();
+    this.pushUrlOptions();
   };
 
   ReplayWriter.prototype = {
@@ -49,7 +49,7 @@ define([
           return;
       }
       // 10 Mb limits of loaded meshes (or with previous replay)
-      if (this.nbBytesLoadingMeshes_ > 10e6 || (this.firstReplay_ && this.firstReplay_.byteLength > 10e6))
+      if (this.nbBytesDynamic_ > 10e6 || (this.firstReplay_ && this.firstReplay_.byteLength > 10e6))
         return statusWidget ? undefined : this.cbCheckUpload_();
       this.lastNbActions_ = nbActions;
 
@@ -92,13 +92,12 @@ define([
       this.lastTransparency_ = undefined;
       this.lastFov_ = undefined;
       this.lastNbActions_ = 0;
-      this.lastRadius_ = 50.0;
 
       this.pressure_ = 1.0;
       this.tUseOnRadius_ = true;
       this.tUseOnIntensity_ = false;
       this.firstReplay_ = null;
-      this.nbBytesLoadingMeshes_ = 0;
+      this.nbBytesDynamic_ = 0;
       this.stack_.length = 0;
       this.sculpt_ = new Sculpt();
 
@@ -114,6 +113,10 @@ define([
       this.firstReplay_ = buffer;
     },
     checkCommonSculptAttributes: function (mainSel, replaySel, name) {
+      if (mainSel.radius_ !== undefined && mainSel.radius_ !== replaySel.radius_) {
+        replaySel.radius_ = mainSel.radius_;
+        this.stack_.push(Replay[name + '_RADIUS'], mainSel.radius_);
+      }
       if (mainSel.intensity_ !== undefined && mainSel.intensity_ !== replaySel.intensity_) {
         replaySel.intensity_ = mainSel.intensity_;
         this.stack_.push(Replay[name + '_INTENSITY'], mainSel.intensity_ * 100);
@@ -152,12 +155,6 @@ define([
       if (pre !== this.pressure_) {
         this.pressure_ = pre;
         this.stack_.push(Replay.TABLET_PRESSURE, pre);
-      }
-
-      var radius = this.main_.getPicking().getScreenRadius();
-      if (radius !== this.lastRadius_) {
-        this.lastRadius_ = radius;
-        this.stack_.push(Replay.SCULPT_RADIUS, radius);
       }
 
       var mainSc = this.main_.getSculpt();
@@ -286,22 +283,33 @@ define([
       this.stack_.push(Replay.DEVICE_MOVE, x, y, mask);
     },
     pushLoadAlpha: function (u8, w, h) {
-      this.nbBytesLoadingMeshes_ += u8.byteLength;
+      this.nbBytesDynamic_ += u8.byteLength;
       this.stack_.push(Replay.LOAD_ALPHA, w, h, u8);
     },
     pushLoadMeshes: function (meshes, fdata, type, autoMatrix) {
-      var ab = type === 'sgl' ? fdata.slice() : ExportSGL.exportSGLAsArrayBuffer(meshes);
-      this.nbBytesLoadingMeshes_ += ab.byteLength;
+      var ab = type === 'sgl' ? fdata.slice() : ExportSGL.exportSGLAsArrayBuffer(meshes, this.main_);
+      this.nbBytesDynamic_ += ab.byteLength;
       this.stack_.push(Replay.LOAD_MESHES, ab, autoMatrix);
+    },
+    pushUrlOptions: function () {
+      var str = window.location.search;
+      var u8 = new Uint8Array(str.length);
+      for (var i = 0, strLen = str.length; i < strLen; i++)
+        u8[i] = str.charCodeAt(i);
+      this.nbBytesDynamic_ += u8.byteLength;
+      this.stack_.push(Replay.URL_CONFIG, u8.buffer);
     },
     pushCameraFov: function (val) {
       this.pushOptimize('lastFov_', Replay.CAMERA_FOV, val);
     },
     pushExposure: function (val) {
-      this.pushOptimize('lastExposure_', Replay.EXPOSURE_INTENSITY, val);
+      this.pushOptimize('lastExposure_', Replay.EXPOSURE, val);
     },
     pushTransparency: function (val) {
       this.pushOptimize('lastTransparency_', Replay.SET_TRANSPARENCY, val);
+    },
+    pushCurvature: function (val) {
+      this.pushOptimize('lastCurvature_', Replay.CURVATURE, val);
     },
     pushOptimize: function (comp, key, val) {
       if (this[comp] === this.stack_.length - 2) {
@@ -316,7 +324,7 @@ define([
       var nb = stack.length;
 
       var offset = this.firstReplay_ ? this.firstReplay_.byteLength : 0;
-      var buffer = new ArrayBuffer(this.nbBytesLoadingMeshes_ + offset + (nb + 2) * 4);
+      var buffer = new ArrayBuffer(this.nbBytesDynamic_ + offset + (nb + 2) * 4);
 
       var data = new DataView(buffer);
       var u8a = new Uint8Array(buffer);
@@ -328,7 +336,7 @@ define([
         data.setUint32(4, Replay.VERSION, true);
         offset += 8 + 4; // code(4o) + version(4o) + nbytes (4o)
       }
-      data.setUint32(8, data.getUint32(8, true) + this.nbBytesLoadingMeshes_, true);
+      data.setUint32(8, data.getUint32(8, true) + this.nbBytesDynamic_, true);
 
       for (var i = 0; i < nb; ++i) {
         var ac = stack[i];
@@ -365,7 +373,6 @@ define([
         case Replay.CAMERA_PROJ_TYPE:
         case Replay.CAMERA_FOV:
         case Replay.SCULPT_TOOL:
-        case Replay.SCULPT_RADIUS:
         case Replay.BRUSH_INTENSITY:
         case Replay.CREASE_INTENSITY:
         case Replay.FLATTEN_INTENSITY:
@@ -380,13 +387,15 @@ define([
         case Replay.MULTI_RESOLUTION:
         case Replay.DYNAMIC_SUBDIVISION:
         case Replay.DYNAMIC_DECIMATION:
-        case Replay.EXPOSURE_INTENSITY:
+        case Replay.EXPOSURE:
         case Replay.SET_TRANSPARENCY:
         case Replay.SHOW_GRID:
+        case Replay.SHOW_CONTOUR:
         case Replay.SHOW_WIREFRAME:
         case Replay.FLAT_SHADING:
         case Replay.SHADER_SELECT:
         case Replay.MATCAP_SELECT:
+        case Replay.ENVIRONMENT_SELECT:
         case Replay.BRUSH_SELECT_ALPHA:
         case Replay.CREASE_SELECT_ALPHA:
         case Replay.FLATTEN_SELECT_ALPHA:
@@ -399,8 +408,24 @@ define([
         case Replay.PAINT_SELECT_ALPHA:
         case Replay.MASKING_SELECT_ALPHA:
         case Replay.MOVE_SELECT_ALPHA:
+        case Replay.CURVATURE:
           data.setUint8(offset, stack[++i], true);
           offset += 1;
+          break;
+        case Replay.BRUSH_RADIUS:
+        case Replay.CREASE_RADIUS:
+        case Replay.FLATTEN_RADIUS:
+        case Replay.INFLATE_RADIUS:
+        case Replay.PINCH_RADIUS:
+        case Replay.SMOOTH_RADIUS:
+        case Replay.TWIST_RADIUS:
+        case Replay.LOCALSCALE_RADIUS:
+        case Replay.DRAG_RADIUS:
+        case Replay.PAINT_RADIUS:
+        case Replay.MOVE_RADIUS:
+        case Replay.MASKING_RADIUS:
+          data.setUint16(offset, stack[++i], true);
+          offset += 2;
           break;
         case Replay.PAINT_COLOR:
           data.setFloat32(offset, stack[++i], true);
@@ -434,6 +459,74 @@ define([
           data.setUint8(offset + 4, stack[++i], true);
           u8a.set(new Uint8Array(ab), offset + 5);
           offset += 5 + ab.byteLength;
+          break;
+        case Replay.URL_CONFIG:
+          var abUrl = stack[++i];
+          data.setUint32(offset, abUrl.byteLength, true);
+          u8a.set(new Uint8Array(abUrl), offset + 4);
+          offset += 4 + abUrl.byteLength;
+          break;
+        case Replay.DEVICE_UP:
+        case Replay.UNDO:
+        case Replay.REDO:
+        case Replay.CAMERA_RESET:
+        case Replay.CAMERA_TOGGLE_FRONT:
+        case Replay.CAMERA_TOGGLE_LEFT:
+        case Replay.CAMERA_TOGGLE_TOP:
+        case Replay.CAMERA_TOGGLE_PIVOT:
+        case Replay.SCULPT_TOGGLE_SYMMETRY:
+        case Replay.SCULPT_TOGGLE_CONTINUOUS:
+        case Replay.SCULPT_UPDATE_CONTINOUS:
+        case Replay.BRUSH_TOGGLE_NEGATIVE:
+        case Replay.BRUSH_TOGGLE_CLAY:
+        case Replay.BRUSH_TOGGLE_CULLING:
+        case Replay.BRUSH_TOGGLE_ACCUMULATE:
+        case Replay.BRUSH_TOGGLE_LOCK_POSITION:
+        case Replay.CREASE_TOGGLE_NEGATIVE:
+        case Replay.CREASE_TOGGLE_CULLING:
+        case Replay.CREASE_TOGGLE_LOCK_POSITION:
+        case Replay.FLATTEN_TOGGLE_NEGATIVE:
+        case Replay.FLATTEN_TOGGLE_CULLING:
+        case Replay.FLATTEN_TOGGLE_LOCK_POSITION:
+        case Replay.INFLATE_TOGGLE_NEGATIVE:
+        case Replay.INFLATE_TOGGLE_CULLING:
+        case Replay.INFLATE_TOGGLE_LOCK_POSITION:
+        case Replay.PINCH_TOGGLE_NEGATIVE:
+        case Replay.PINCH_TOGGLE_CULLING:
+        case Replay.PINCH_TOGGLE_LOCK_POSITION:
+        case Replay.SMOOTH_TOGGLE_CULLING:
+        case Replay.SMOOTH_TOGGLE_TANGENT:
+        case Replay.SMOOTH_TOGGLE_LOCK_POSITION:
+        case Replay.LOCALSCALE_TOGGLE_CULLING:
+        case Replay.TWIST_TOGGLE_CULLING:
+        case Replay.TRANSLATE_TOGGLE_NEGATIVE:
+        case Replay.ROTATE_TOGGLE_NEGATIVE:
+        case Replay.PAINT_TOGGLE_CULLING:
+        case Replay.PAINT_TOGGLE_LOCK_POSITION:
+        case Replay.PAINT_ALL:
+        case Replay.MOVE_TOGGLE_TOPOCHECK:
+        case Replay.MOVE_TOGGLE_NEGATIVE:
+        case Replay.MASKING_TOGGLE_NEGATIVE:
+        case Replay.MASKING_TOGGLE_CULLING:
+        case Replay.MASKING_CLEAR:
+        case Replay.MASKING_INVERT:
+        case Replay.MASKING_BLUR:
+        case Replay.MASKING_SHARPEN:
+        case Replay.MASKING_TOGGLE_LOCK_POSITION:
+        case Replay.MULTI_SUBDIVIDE:
+        case Replay.MULTI_REVERSE:
+        case Replay.MULTI_DEL_LOWER:
+        case Replay.MULTI_DEL_HIGHER:
+        case Replay.MERGE_SELECTION:
+        case Replay.DYNAMIC_TOGGLE_ACTIVATE:
+        case Replay.DYNAMIC_TOGGLE_LINEAR:
+        case Replay.ADD_SPHERE:
+        case Replay.ADD_CUBE:
+        case Replay.DELETE_SELECTION:
+        case Replay.ISOLATE_SELECTION:
+        case Replay.SHOW_ALL:
+        case Replay.TABLET_TOGGLE_INTENSITY:
+        case Replay.TABLET_TOGGLE_RADIUS:
           break;
         }
       }

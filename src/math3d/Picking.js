@@ -3,8 +3,9 @@ define([
   'math3d/Geometry',
   'mesh/Mesh',
   'misc/Tablet',
-  'misc/Utils'
-], function (glm, Geometry, Mesh, Tablet, Utils) {
+  'misc/Utils',
+  'gui/GuiTR'
+], function (glm, Geometry, Mesh, Tablet, Utils, TR) {
 
   'use strict';
 
@@ -17,7 +18,6 @@ define([
     this.pickedFace_ = -1; // face picked
     this.pickedVertices_ = []; // vertices selected
     this.interPoint_ = [0.0, 0.0, 0.0]; // intersection point (mesh local space)
-    this.rDisplay_ = 50; // radius of the selection area (screen space)
     this.rLocal2_ = 0.0; // radius of the selection area (local/object space)
     this.rWorld2_ = 0.0; // radius of the selection area (world space)
     this.eyeDir_ = [0.0, 0.0, 0.0]; // eye direction
@@ -32,7 +32,8 @@ define([
     this.alpha_ = null;
   };
 
-  Picking.ALPHAS_NAMES = ['None', 'Square', 'Skin'];
+  // TODO update i18n strings in a dynamic way
+  Picking.ALPHAS_NAMES = [TR('alphaNone'), TR('alphaSquare'), TR('alphaSkin')];
   Picking.ALPHAS_PATHS = ['square.jpg', 'skin.jpg'];
   Picking.ALPHAS = [null];
   Picking.addAlpha = function (u8, width, height) {
@@ -110,12 +111,6 @@ define([
     getWorldRadius: function () {
       return Math.sqrt(this.rWorld2_);
     },
-    getScreenRadius2: function () {
-      return this.rDisplay_ * this.rDisplay_;
-    },
-    getScreenRadius: function () {
-      return this.rDisplay_;
-    },
     setIntersectionPoint: function (inter) {
       this.interPoint_ = inter;
     },
@@ -167,7 +162,7 @@ define([
         vec3.copy(this.interPoint_, nearPoint);
         this.pickedFace_ = nearFace;
         if (nearFace !== -1)
-          this.computeRadiusWorld2(mouseX, mouseY);
+          this.computeLocalAndWorldRadius2(mouseX, mouseY);
       };
     })(),
     /** Intersection between a ray the mouse position */
@@ -243,7 +238,7 @@ define([
         }
         if (this.pickedFace_ !== -1) {
           this.mesh_ = mesh;
-          this.computeRadiusWorld2(mouseX, mouseY);
+          this.computeLocalAndWorldRadius2(mouseX, mouseY);
         } else {
           this.rLocal2_ = 0.0;
         }
@@ -332,15 +327,18 @@ define([
       this.pickedVertices_ = new Uint32Array(pickedVertices.subarray(0, acc));
       return this.pickedVertices_;
     },
-    /** Compute the selection radius in world space */
-    computeRadiusWorld2: function (mouseX, mouseY) {
+    /** Compute the selection radius in world and local space */
+    computeLocalAndWorldRadius2: function (mouseX, mouseY) {
       var mesh = this.mesh_;
       if (!mesh) return;
       var interPointTransformed = [0.0, 0.0, 0.0];
       vec3.transformMat4(interPointTransformed, this.getIntersectionPoint(), mesh.getMatrix());
+
+      var screenRadius = this.main_.getSculpt().getCurrentTool().radius_ || 1;
       var z = this.project(interPointTransformed)[2];
-      var vCircle = this.unproject(mouseX + (this.rDisplay_ * Tablet.getPressureRadius()), mouseY, z);
+      var vCircle = this.unproject(mouseX + (screenRadius * Tablet.getPressureRadius()), mouseY, z);
       this.rWorld2_ = vec3.sqrDist(interPointTransformed, vCircle);
+
       var invScale = 1.0 / mesh.getScale();
       vec3.scale(interPointTransformed, interPointTransformed, invScale);
       vec3.scale(vCircle, vCircle, invScale);

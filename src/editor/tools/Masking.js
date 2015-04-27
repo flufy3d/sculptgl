@@ -15,10 +15,11 @@ define([
 
   var Masking = function (states) {
     SculptBase.call(this, states);
+    this.radius_ = 50;
     this.hardness_ = 0.25;
-    this.intensity_ = 1.0; // deformation intensity
-    this.negative_ = true; // opposition deformation
-    this.culling_ = false; // if we backface cull the vertices
+    this.intensity_ = 1.0;
+    this.negative_ = true;
+    this.culling_ = false;
     this.idAlpha_ = 0;
     this.lockPosition_ = false;
 
@@ -170,9 +171,11 @@ define([
       var mAr = mesh.getMaterials();
       var eAr = mesh.getVerticesOnEdge();
 
+      var noThick = this.thickness_ === 0;
+
       var nbFaces = iFaces.length;
       var nbNewFaces = new Int32Array(Utils.getMemory(nbFaces * 4 * 4 * 3), 0, nbFaces * 4 * 3);
-      var offsetFLink = nbFaces * 2;
+      var offsetFLink = noThick ? nbFaces : nbFaces * 2;
       for (var i = 0; i < nbFaces; ++i) {
         var idf = i * 4;
         var idOld = iFaces[i] * 4;
@@ -180,6 +183,8 @@ define([
         var iv2 = nbNewFaces[idf + 1] = fAr[idOld + 1];
         var iv3 = nbNewFaces[idf + 2] = fAr[idOld + 2];
         var iv4 = nbNewFaces[idf + 3] = fAr[idOld + 3];
+        if (noThick)
+          continue;
         var isQuad = iv4 >= 0;
 
         var b1 = mAr[iv1 * 3 + 2] >= maskClamp || eAr[iv1] >= 1;
@@ -316,7 +321,8 @@ define([
       newMesh.initColorsAndMaterials();
       newMesh.allocateArrays();
       newMesh.initTopology();
-      this.smoothBorder(newMesh, iFaces);
+      if (this.thickness_ !== 0.0)
+        this.smoothBorder(newMesh, iFaces);
       newMesh.updateGeometry();
       newMesh.updateDuplicateColorsAndMaterials();
 

@@ -1,14 +1,16 @@
 define([
+  'misc/getUrlOptions',
   'gui/tr/english',
   'gui/tr/chinese',
-  'gui/tr/japan',
+  'gui/tr/japanese',
   'gui/tr/korean',
-], function (english, chinese, japan, korean) {
+  'gui/tr/russian'
+], function (getUrlOptions, english, chinese, japanese, korean, russian) {
 
   'use strict';
 
   var GuiTR = function (key) {
-    var str = GuiTR.languages[GuiTR.select][key];
+    var str = GuiTR.languages[GuiTR.select][key] || GuiTR.languages.english[key];
     if (typeof str === 'string')
       return str;
     if (typeof str === 'function')
@@ -18,9 +20,10 @@ define([
 
   GuiTR.languages = {
     'english': english,
-    '日本語': japan,
+    '日本語': japanese,
     '中文': chinese,
-    '한국어' : korean
+    '한국어': korean,
+    'русский': russian
   };
 
   GuiTR.select = 'english';
@@ -29,6 +32,25 @@ define([
   if (language === 'ja') GuiTR.select = '日本語';
   else if (language === 'zh') GuiTR.select = '中文';
   else if (language === 'ko') GuiTR.select = '한국어';
+  else if (language === 'ru') GuiTR.select = 'русский';
+
+  switch (getUrlOptions().language) {
+  case 'english':
+    GuiTR.select = 'english';
+    break;
+  case 'chinese':
+    GuiTR.select = '中文';
+    break;
+  case 'korean':
+    GuiTR.select = '한국어';
+    break;
+  case 'japanese':
+    GuiTR.select = '日本語';
+    break;
+  case 'russian':
+    GuiTR.select = 'русский';
+    break;
+  }
 
   return GuiTR;
 });

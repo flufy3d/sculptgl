@@ -1,22 +1,24 @@
 define([
+  'misc/getUrlOptions',
   'render/shaders/ShaderBackground',
+  'render/shaders/ShaderContour',
   'render/shaders/ShaderSelection',
   'render/shaders/ShaderGrid',
+  'render/shaders/ShaderFlat',
   'render/shaders/ShaderMatcap',
   'render/shaders/ShaderNormal',
   'render/shaders/ShaderPBR',
   'render/shaders/ShaderRtt',
   'render/shaders/ShaderUV',
-  'render/shaders/ShaderWireframe',
-  'render/shaders/ShaderCurvature'
-], function (Sbackground, Sselection, Sgrid, Smatcap, Snormal, SPBR, Srtt, Suv, Swireframe, Scurvature) {
+  'render/shaders/ShaderWireframe'
+], function (getUrlOptions, Sbackground, Scontour, Sselection, Sgrid, Sflat, Smatcap, Snormal, SPBR, Srtt, Suv, Swireframe) {
 
   'use strict';
 
   var Shader = function (gl) {
-    this.gl_ = gl; // webgl context
-    this.type_ = Shader.mode.PBR; // type of shader
-    this.shaderObject_ = null; // the shader
+    this.gl_ = gl;
+    this.type_ = Shader.mode[getUrlOptions().shader] || Shader.mode.PBR;
+    this.shaderObject_ = null;
   };
 
   Shader.mode = {
@@ -29,7 +31,8 @@ define([
     GRID: 6,
     SELECTION: 7,
     RTT: 8,
-    CURVATURE: 9
+    CONTOUR: 9,
+    FLAT: 10
   };
 
   Shader[Shader.mode.RTT] = Srtt;
@@ -41,7 +44,8 @@ define([
   Shader[Shader.mode.NORMAL] = Snormal;
   Shader[Shader.mode.UV] = Suv;
   Shader[Shader.mode.WIREFRAME] = Swireframe;
-  Shader[Shader.mode.CURVATURE] = Scurvature;
+  Shader[Shader.mode.CONTOUR] = Scontour;
+  Shader[Shader.mode.FLAT] = Sflat;
 
   Shader.prototype = {
     /** Return the type of shader */

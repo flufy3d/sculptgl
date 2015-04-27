@@ -69,7 +69,6 @@ define([
 
       main.replaceMesh(mesh, newMesh);
       main.getStates().pushStateAddRemove(newMesh, mesh);
-      this.updateMesh();
     },
     dynamicToggleLinear: function () {
       var main = this.main_;
@@ -99,17 +98,18 @@ define([
       if (!main.isReplayed())
         main.getReplayWriter().pushAction('VOXEL_REMESH', Remesh.RESOLUTION, Remesh.BLOCK);
 
-      var meshes = main.getMeshes().slice();
-      for (var i = 0, l = meshes.length; i < l; ++i) {
-        if (meshes[i] === mesh)
-          mesh = meshes[i] = this.convertToStaticMesh(meshes[i]);
-        else
-          meshes[i] = this.convertToStaticMesh(meshes[i]);
+      var meshes = main.getMeshes();
+      var selMeshes = main.getSelectedMeshes().slice();
+      for (var i = 0, l = selMeshes.length; i < l; ++i) {
+        var sel = selMeshes[i];
+        meshes.splice(main.getIndexMesh(sel), 1);
+        selMeshes[i] = this.convertToStaticMesh(sel);
+        if (sel === mesh)
+          mesh = selMeshes[i];
       }
-      var newMesh = Remesh.remesh(mesh, meshes);
-      main.getStates().pushStateAddRemove(newMesh, main.getMeshes().slice());
-      main.meshes_.length = 0;
-      main.meshes_.push(newMesh);
+      var newMesh = Remesh.remesh(selMeshes, mesh);
+      main.getStates().pushStateAddRemove(newMesh, main.getSelectedMeshes().slice());
+      main.getMeshes().push(newMesh);
       main.setMesh(newMesh);
     },
     /** Check if the mesh is a multiresolution one */
@@ -168,7 +168,6 @@ define([
       }
       main.getStates().pushState(new StateMultiresolution(main, mul, StateMultiresolution.SUBDIVISION));
       mul.addLevel();
-      this.ctrlGui_.updateMeshInfo();
       main.setMesh(mul);
       main.render();
     },
@@ -200,7 +199,6 @@ define([
         main.getStates().pushStateAddRemove(mul, mesh, true);
       }
       main.getStates().pushState(stateRes);
-      this.ctrlGui_.updateMeshInfo();
       main.setMesh(mul);
       main.render();
     },

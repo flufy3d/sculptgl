@@ -1,8 +1,9 @@
 define([
   'lib/glMatrix',
+  'misc/getUrlOptions',
   'misc/Utils',
   'math3d/Geometry'
-], function (glm, Utils, Geometry) {
+], function (glm, getUrlOptions, Utils, Geometry) {
 
   'use strict';
 
@@ -14,8 +15,9 @@ define([
   var quat = glm.quat;
 
   var Camera = function () {
-    this.mode_ = Camera.mode.ORBIT; // camera mode
-    this.projType_ = Camera.projType.PERSPECTIVE; // the projection type
+    var opts = getUrlOptions();
+    this.mode_ = Camera.mode[opts.cameramode] || Camera.mode.ORBIT;
+    this.projType_ = Camera.projType[opts.projection] || Camera.projType.PERSPECTIVE;
 
     this.quatRot_ = quat.create(); // quaternion rotation
     this.view_ = mat4.create(); // view matrix
@@ -26,7 +28,7 @@ define([
     this.height_ = 0.0; // viewport height
 
     this.speed_ = 0.0; // solve scale issue
-    this.fov_ = 45.0; // vertical field of view
+    this.fov_ = Math.min(opts.fov, 150); // vertical field of view
 
     // translation stuffs
     this.zoom_ = 0.0; // zoom value
@@ -36,7 +38,7 @@ define([
     this.moveZ_ = 0; // free look (strafe), possible values : -1, 0, 1
 
     // pivot stuffs
-    this.usePivot_ = false; // if rotation is centered around the picked point
+    this.usePivot_ = opts.pivot; // if rotation is centered around the picked point
     this.center_ = [0.0, 0.0, 0.0]; // center of rotation
     this.stepCenter_ = [0.0, 0.0, 0.0]; // step vector to translate between pivots
     this.stepZoom_ = 0.0; // step zoom value
@@ -69,6 +71,7 @@ define([
     setProjType: function (type) {
       this.projType_ = type;
       this.updateProjection();
+      this.updateView();
     },
     setMode: function (mode) {
       this.mode_ = mode;
@@ -77,10 +80,17 @@ define([
     },
     setFov: function (fov) {
       this.fov_ = fov;
-      this.updateProjection();
+      this.updateView();
+      this.optimizeNearFar();
+    },
+    setUsePivot: function (bool) {
+      this.usePivot_ = bool;
     },
     getProjType: function () {
       return this.projType_;
+    },
+    isOrthographic: function () {
+      return this.projType_ === Camera.projType.ORTHOGRAPHIC;
     },
     getMode: function () {
       return this.mode_;
@@ -148,6 +158,9 @@ define([
         this.updateView();
       };
     })(),
+    getTransZ: function () {
+      return this.projType_ === Camera.projType.PERSPECTIVE ? this.zoom_ * 45 / this.fov_ : 1000.0;
+    },
     /** Update model view matrices */
     updateView: (function () {
       var up = [0.0, 1.0, 0.0];
@@ -160,8 +173,7 @@ define([
         var view = this.view_;
         var tx = this.transX_;
         var ty = this.transY_;
-        var zoom = this.projType_ === Camera.projType.PERSPECTIVE ? this.zoom_ : 1000.0;
-        mat4.lookAt(view, vec3.set(eye, tx, ty, zoom), vec3.set(center, tx, ty, 0.0), up);
+        mat4.lookAt(view, vec3.set(eye, tx, ty, this.getTransZ()), vec3.set(center, tx, ty, 0.0), up);
         mat4.mul(view, view, mat4.fromQuat(matTmp, this.quatRot_));
         mat4.translate(view, view, vec3.negate(vecTmp, this.center_));
       };
@@ -170,7 +182,10 @@ define([
       var eye = [0.0, 0.0, 0.0];
       var tmp = [0.0, 0.0, 0.0];
       return function (bb) {
-        vec3.set(eye, this.transX_, this.transY_, this.projType_ === Camera.projType.PERSPECTIVE ? this.zoom_ : 1000.0);
+        if (!bb)
+          bb = this.boundingBox_;
+        this.boundingBox_ = bb;
+        vec3.set(eye, this.transX_, this.transY_, this.getTransZ());
         var diag = vec3.dist(bb, vec3.set(tmp, bb[3], bb[4], bb[5]));
         var dist = vec3.dist(eye, vec3.set(tmp, (bb[0] + bb[3]) * 0.5, (bb[1] + bb[4]) * 0.5, (bb[2] + bb[5]) * 0.5));
         this.near_ = Math.max(0.01, dist - diag);
@@ -212,7 +227,7 @@ define([
     /** Update orthographic projection */
     updateOrtho: function () {
       var delta = Math.abs(this.zoom_) * 0.00055;
-      mat4.ortho(this.proj_, -this.width_ * delta, this.width_ * delta, -this.height_ * delta, this.height_ * delta, -10000.0, 10000.0);
+      mat4.ortho(this.proj_, -this.width_ * delta, this.width_ * delta, -this.height_ * delta, this.height_ * delta, -this.near_, this.far_);
     },
     /** Return the position of the camera */
     computePosition: function () {

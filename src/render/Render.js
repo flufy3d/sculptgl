@@ -1,8 +1,9 @@
 define([
+  'misc/getUrlOptions',
   'render/Shader',
   'render/Buffer',
   'render/shaders/ShaderMatcap'
-], function (Shader, Buffer, ShaderMatcap) {
+], function (getUrlOptions, Shader, Buffer, ShaderMatcap) {
 
   'use strict';
 
@@ -13,8 +14,12 @@ define([
     this.shader_ = new Shader(gl);
     this.shaderWireframe_ = new Shader(gl);
 
-    this.flatShading_ = false;
-    this.showWireframe_ = false;
+    var opts = getUrlOptions();
+    this.flatShading_ = opts.flatshading;
+    this.showWireframe_ = opts.wireframe;
+    this.matcap_ = Math.min(opts.matcap, ShaderMatcap.matcaps.length - 1); // matcap id
+    this.curvature_ = Math.min(opts.curvature, 5.0);
+    this.texture0_ = null;
 
     this.vertexBuffer_ = new Buffer(gl, gl.ARRAY_BUFFER, gl.DYNAMIC_DRAW);
     this.normalBuffer_ = new Buffer(gl, gl.ARRAY_BUFFER, gl.DYNAMIC_DRAW);
@@ -23,8 +28,6 @@ define([
     this.texCoordBuffer_ = new Buffer(gl, gl.ARRAY_BUFFER, gl.STATIC_DRAW);
     this.indexBuffer_ = new Buffer(gl, gl.ELEMENT_ARRAY_BUFFER, gl.STATIC_DRAW);
     this.wireframeBuffer_ = new Buffer(gl, gl.ELEMENT_ARRAY_BUFFER, gl.STATIC_DRAW);
-    this.texture0_ = null;
-    this.matcap_ = 0; // the chosen matcap texture index
 
     // these material values overrides the vertex attributes
     // it's here for debug or preview
@@ -104,6 +107,12 @@ define([
     getOpacity: function () {
       return this.alpha_;
     },
+    setCurvature: function (cur) {
+      this.curvature_ = cur;
+    },
+    getCurvature: function () {
+      return this.curvature_;
+    },
     isTransparent: function () {
       return this.alpha_ < 0.99;
     },
@@ -119,10 +128,13 @@ define([
     setTexture0: function (tex) {
       this.texture0_ = tex;
     },
+    getMatcap: function () {
+      return this.matcap_;
+    },
     setMatcap: function (idMat) {
       this.matcap_ = idMat;
-      this.setTexture0(ShaderMatcap.textures[idMat]);
     },
+    // this.setTexture0(ShaderMatcap.textures[idMat]);
     setShowWireframe: function (showWireframe) {
       this.showWireframe_ = Render.ONLY_DRAW_ARRAYS ? false : showWireframe;
       this.updateWireframeBuffer();
@@ -152,7 +164,7 @@ define([
     initRender: function () {
       this.shaderWireframe_.setType(Shader.mode.WIREFRAME);
       if (this.getShaderType() === Shader.mode.MATCAP && !this.texture0_)
-        this.setMatcap(0);
+        this.setMatcap(this.matcap_);
       this.setShader(this.getShaderType());
       this.setShowWireframe(this.getShowWireframe());
     },
@@ -160,6 +172,9 @@ define([
       this.shader_.draw(this, main);
       if (this.getShowWireframe())
         this.shaderWireframe_.draw(this, main);
+    },
+    renderFlatColor: function (main) {
+      Shader[Shader.mode.FLAT].getOrCreate(this.getGL()).draw(this, main);
     },
     updateVertexBuffer: function () {
       this.getVertexBuffer().update(this.mesh_.getRenderVertices());
@@ -211,9 +226,10 @@ define([
       this.setFlatShading(mesh.getFlatShading());
       this.setShowWireframe(mesh.getShowWireframe());
       this.setShader(mesh.getShaderType());
+      this.setMatcap(mesh.getMatcap());
       this.setTexture0(mesh.getTexture0());
-      this.setRoughness(mesh.getRoughness());
-      this.setMetallic(mesh.getMetallic());
+      this.setCurvature(mesh.getCurvature());
+      this.setOpacity(mesh.getOpacity());
     }
   };
 
